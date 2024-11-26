@@ -1,22 +1,17 @@
-""""Done by Shukrullo Nazirjonov"""
 import os
 import torch
 import numpy as np
 from torchvision import models, transforms
-from flask import Flask, request, render_template, redirect, url_for
+from flask import Flask, render_template, Response
 from PIL import Image
-from flask import send_from_directory
-import matplotlib.pyplot as plt
 import cv2
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Load VGG16 model and weights
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = models.vgg16(pretrained=False)
-model.load_state_dict(torch.load('vgg16_weights.pth', map_location=device))
+model.load_state_dict(torch.load('weights/vgg16_weights.pth', map_location=device))
 model = model.to(device)
 model.eval()
 
@@ -64,7 +59,7 @@ def generate_gradcam(input_tensor, model, target_layer, class_index):
     for i, w in enumerate(weights):
         cam += w * acts[i]
 
-    # Relu on cam
+    # ReLU on cam
     cam = np.maximum(cam, 0)
     cam = cam / cam.max()  # Normalize between 0 and 1
 
@@ -73,54 +68,69 @@ def generate_gradcam(input_tensor, model, target_layer, class_index):
 
     return cam
 
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-@app.route('/predict', methods=['POST'])
-def predict():
-    if 'image' not in request.files:
-        return redirect(url_for('index'))
-    
-    file = request.files['image']
-    if file.filename == '':
-        return redirect(url_for('index'))
-    
-    # Save and process the uploaded image
-    image_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-    file.save(image_path)
-
-    image = Image.open(image_path).convert('RGB')
+def process_frame(frame):
+    """
+    Process a frame with the model and generate Grad-CAM overlay.
+    """
+    image = Image.fromarray(frame[..., ::-1])  # Convert BGR to RGB
     input_tensor = transform(image).unsqueeze(0).to(device)
     
     with torch.no_grad():
         outputs = model(input_tensor)
-        _, indices = torch.topk(outputs, 5)  # Get top 5 predictions
+        _, indices = torch.topk(outputs, 1)  # Get the top prediction
         probabilities = torch.nn.functional.softmax(outputs, dim=1)
-        top_probs = probabilities[0, indices[0]].cpu().numpy()
-        top_indices = indices[0].cpu().numpy()
+        top_index = indices[0][0].item()
+        top_label = labels[top_index]
+        top_prob = probabilities[0, top_index].item()
 
-    # Map indices to labels
-    top_classes = [{"class": labels[i], "probability": float(top_probs[j])} 
-                   for j, i in enumerate(top_indices)]
-
-    # Grad-CAM for the top prediction
+    # Generate Grad-CAM
     target_layer = model.features[-1]  # Last convolutional layer
-    cam = generate_gradcam(input_tensor, model, target_layer, top_indices[0])
-
-    # Overlay Grad-CAM on the original image
-    cam = cv2.resize(cam, (image.width, image.height))
+    cam = generate_gradcam(input_tensor, model, target_layer, top_index)
+    cam = cv2.resize(cam, (frame.shape[1], frame.shape[0]))
     heatmap = cv2.applyColorMap(np.uint8(255 * cam), cv2.COLORMAP_JET)
-    original_image = np.array(image)
-    overlay = heatmap * 0.4 + original_image[..., ::-1] 
-    overlay_path = os.path.join(app.config['UPLOAD_FOLDER'], f"gradcam_{file.filename}")
-    cv2.imwrite(overlay_path, overlay)
 
-    return render_template('result.html', image_path=image_path, overlay_path=overlay_path, predictions=top_classes)
+    # Overlay heatmap on the original frame
+    overlay = heatmap * 0.4 + frame
+
+    # Add label and probability to the overlay
+    label_text = f"{top_label}: {top_prob:.2f}"
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(overlay, label_text, (10, 30), font, 1, (255, 255, 255), 2, cv2.LINE_AA)
+    return overlay
+
+@app.route('/')
+def index():
+    return render_template('camera_index.html')
+
+def video_stream():
+    """
+    Capture frames from the webcam and process them in real-time.
+    """
+    cap = cv2.VideoCapture(0)  # Open the webcam
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Resize the frame to a smaller size (e.g., 640x480)
+        frame = cv2.resize(frame, (640, 480))
+
+        # Process the frame with Grad-CAM
+        overlay = process_frame(frame)
+        _, buffer = cv2.imencode('.jpg', overlay)
+        frame_data = buffer.tobytes()
+
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_data + b'\r\n')
+
+    cap.release()
+
+@app.route('/video_feed')
+def video_feed():
+    """
+    Route for streaming the video feed with Grad-CAM overlay.
+    """
+    return Response(video_stream(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=500, debug=False)
