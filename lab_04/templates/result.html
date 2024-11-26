@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction Results</title>
+</head>
+<body>
+    <h1>Prediction Results</h1>
+    <h2>Original Image:</h2>
+    <img src="/uploads/{{ image_path.split('/')[-1] }}" alt="Uploaded Image" style="max-width: 400px;">
+    <h2>Grad-CAM Visualization:</h2>
+    <img src="/uploads/{{ overlay_path.split('/')[-1] }}" alt="Grad-CAM Image" style="max-width: 400px;">
+    <h2>Top 5 Predictions:</h2>
+    <ul>
+        {% for prediction in predictions %}
+        <li>{{ prediction.class }}: {{ prediction.probability | round(4) }}</li>
+        {% endfor %}
+    </ul>
+    <a href="/">Upload Another Image</a>
+</body>
+</html>
