@@ -1,4 +1,7 @@
 *.jpeg
 *.png
-*.pth
-*.pt
+*_pycache_*
+*.pyc
+*.pyo
+# *.pth
+# *.pt

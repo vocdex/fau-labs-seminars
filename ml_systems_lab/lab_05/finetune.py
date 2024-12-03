@@ -75,8 +75,8 @@ def fine_tune_model():
     print("Fine-tuning completed and model saved")
 
 def compare_models():
-    X_test = torch.load('X_test.pt')
-    Y_test = torch.load('Y_test.pt')
+    X_test = torch.load('x_test.pt')
+    Y_test = torch.load('y_test.pt')
     
     models = {
         'Original': torch.load('model.pth', map_location=torch.device('cpu')),
@@ -131,7 +131,7 @@ def compare_models():
         print(f"  Top-1 Accuracy: {metrics['Top-1 Accuracy']:.2f}%")
         print(f"  Top-5 Accuracy: {metrics['Top-5 Accuracy']:.2f}%")
 
-        
+
 def main():
     # Perform 1000 requests
     perform_requests()
