@@ -1,7 +1,9 @@
 *.jpeg
 *.png
-*_pycache_*
 *.pyc
 *.pyo
+# ignore pycache
+__pycache__/
+
 # *.pth
 # *.pt
