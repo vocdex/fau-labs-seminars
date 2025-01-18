@@ -41,6 +41,7 @@ def predict():
 
     index = int(request.form['index'])
     image = X_train[index]
+    breakpoint
     true_label = y_train[index].item()
 
     if image.dim() == 2:
