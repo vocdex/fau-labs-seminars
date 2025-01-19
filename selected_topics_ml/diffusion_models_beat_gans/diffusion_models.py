@@ -1,6 +1,7 @@
 import torch
 import torchvision.transforms as transforms
 import os
+import math
 from PIL import Image
 
 def resize_image(image_path, scale_factor):
@@ -89,10 +90,10 @@ class ForwardDiffusionProcess:
         """
         steps = self.num_steps + 1
         x = torch.linspace(0, self.num_steps, steps, dtype=torch.float64)/self.num_steps
-        alphas_cumprod = torch.cos(((x / self.num_steps) + s) / (1 + s) * torch.pi * 0.5) ** 2
+        alphas_cumprod = torch.cos((x+s)/(1+s)*math.pi * 0.5)**2
         alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
         betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
-        return torch.clip(betas, 0, 0.02)
+        return torch.clip(betas, 0, 0.999)
     
     def linear_beta_schedule(self):
         """
@@ -101,11 +102,11 @@ class ForwardDiffusionProcess:
         Returns:
             torch.Tensor: Beta values for noise schedule
         """
-        scale = 1.0
+        scale = 1000/ self.num_steps
         beta_start = scale * 0.0001
         beta_end = scale * 0.02
         betas = torch.linspace(beta_start, beta_end, self.num_steps, dtype=torch.float64)
-        return torch.clip(betas, 0, 0.02)
+        return betas
     
     def forward_diffusion(self, scheduler_type='cosine'):
         """
@@ -129,35 +130,36 @@ class ForwardDiffusionProcess:
         
         noisy_image = self.original_image.clone()
         for t in range(self.num_steps):
-            # Add noise
-            noise = torch.randn_like(noisy_image)
-            sqrt_alpha_cumprod = torch.sqrt(alphas_cumprod[t])
-            sqrt_one_minus_alpha_cumprod = torch.sqrt(1 - alphas_cumprod[t])
-            
-            noisy_image = sqrt_alpha_cumprod * noisy_image + sqrt_one_minus_alpha_cumprod * noise
-            
-            img_array = noisy_image[0].cpu().permute(1, 2, 0).numpy()
-            img_array = (img_array * 255).clip(0, 255).astype(np.uint8)
-            pil_image = Image.fromarray(img_array)
-            
-            draw = ImageDraw.Draw(pil_image)
-            text = f"Step: {t}/{self.num_steps}"
-            try:
-                font = ImageFont.truetype("Arial.ttf", 50)
-            except:
-                font = ImageFont.load_default()
+            if t % 10==0:
+                # Add noise
+                noise = torch.randn_like(noisy_image)
+                sqrt_alpha_cumprod = torch.sqrt(alphas_cumprod[t])
+                sqrt_one_minus_alpha_cumprod = torch.sqrt(1 - alphas_cumprod[t])
                 
-            x, y = 20, 15  # Position of text
-            for offset in [(1,1), (-1,-1), (1,-1), (-1,1)]:
-                draw.text((x+offset[0], y+offset[1]), text, font=font, fill='black')
-            draw.text((x, y), text, font=font, fill='white')
-            pil_image.save(f'{self.output_dir}/step_{t}.png')
+                noisy_image = sqrt_alpha_cumprod * noisy_image + sqrt_one_minus_alpha_cumprod * noise
+                
+                img_array = noisy_image[0].cpu().permute(1, 2, 0).numpy()
+                img_array = (img_array * 255).clip(0, 255).astype(np.uint8)
+                pil_image = Image.fromarray(img_array)
+                
+                draw = ImageDraw.Draw(pil_image)
+                text = f"Step: {t}/{self.num_steps}"
+                try:
+                    font = ImageFont.truetype("Arial.ttf", 50)
+                except:
+                    font = ImageFont.load_default()
+                    
+                x, y = 20, 15  # Position of text
+                for offset in [(1,1), (-1,-1), (1,-1), (-1,1)]:
+                    draw.text((x+offset[0], y+offset[1]), text, font=font, fill='black')
+                draw.text((x, y), text, font=font, fill='white')
+                pil_image.save(f'{self.output_dir}/step_{t}.png')
 
 
 if __name__ == '__main__':
     image_path = 'topological_lady.jpeg'
     
-    diffusion = ForwardDiffusionProcess(image_path, num_steps=100)
+    diffusion = ForwardDiffusionProcess(image_path, num_steps=1000)
     
     diffusion.forward_diffusion(scheduler_type='cosine')
     

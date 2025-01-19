@@ -29,8 +29,8 @@ Here's a small comparison of cosine and linear beta variance schedulers for the 
         <b>Cosine Scheduler</b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
         <b>Linear Scheduler</b>
     </div>
-    <img src="./selected_topics_ml/diffusion_models_beat_gans/diffusion_steps/cosine/cosine_noising.gif" width="250" alt="Cosine" />
-    <img src="./selected_topics_ml/diffusion_models_beat_gans/diffusion_steps/linear/linear_noising.gif" width="250" alt="Linear" />
+    <img src="./selected_topics_ml/diffusion_models_beat_gans/diffusion_steps/cosine/cosine.gif" width="250" alt="Cosine" />
+    <img src="./selected_topics_ml/diffusion_models_beat_gans/diffusion_steps/linear/linear.gif" width="250" alt="Linear" />
 </div>
 
-It seems like linear scheduler more aggressively noising the image compared to cosine scheduler. Either there is a bug in the code or the linear scheduler is not implemented correctly or this is the expected behavior.
+As expected, the cosine scheduler degrades the image more gracefully than the linear scheduler.
